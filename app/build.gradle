@@ -6,8 +6,8 @@ android {
 
     defaultConfig {
         applicationId "com.moe.processmanager"
-        minSdkVersion 14
-        targetSdkVersion 21
+        minSdkVersion 29
+        targetSdkVersion 29
         versionCode 1
         versionName "1.0"
     }
@@ -20,5 +20,6 @@ android {
 }
 
 dependencies {
+	compile project(':hidden-api-stub')
     compile fileTree(dir: 'libs', include: ['*.jar'])
 }
