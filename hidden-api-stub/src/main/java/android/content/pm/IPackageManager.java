@@ -6,9 +6,12 @@ import android.os.IInterface;
 import android.os.RemoteException;
 
 import androidx.annotation.RequiresApi;
+import android.content.Intent;
 
 public interface IPackageManager extends IInterface {
-
+	ParceledListSlice queryIntentReceivers(Intent intent,
+	String resolvedType, int flags, int userId);
+	
     ApplicationInfo getApplicationInfo(String packageName, int flags, int userId)
             throws RemoteException;
 

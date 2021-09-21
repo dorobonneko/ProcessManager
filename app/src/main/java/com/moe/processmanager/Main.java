@@ -23,6 +23,9 @@ import android.content.Context;
 import android.view.inputmethod.InputMethodInfo;
 import android.app.usage.IUsageStatsManager;
 import android.system.Os;
+import android.content.Intent;
+import android.content.pm.ResolveInfo;
+import java.util.Iterator;
 
 public class Main
 {
@@ -65,14 +68,7 @@ public class Main
 			else
 		    iam=IActivityManager.Stub.asInterface(binder);
 		ipm=IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-	    /*try
-		{
-			iam.registerProcessObserver(new ProcessObserver());
-		}
-		catch (RemoteException e)
-		{
-			e.printStackTrace();
-		}*/
+	    
 		try
 		{
 			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED|UID_OBSERVER_GONE|UID_OBSERVER_IDLE, -1, null);
@@ -82,6 +78,7 @@ public class Main
 			e.printStackTrace();
 		}
 	}
+	
 	class UidObserver extends IUidObserver.Stub
 	{
 		@Override
@@ -129,32 +126,5 @@ public class Main
 		}
 		
 		
-	}
-	class ProcessObserver extends IProcessObserver.Stub
-	{
-
-		@Override
-		public void onForegroundActivitiesChanged(int pid, int uid, boolean foregroundActivities) throws RemoteException
-		{
-			// TODO: Implement this method
-		}
-
-		@Override
-		public void onProcessDied(int pid, int uid) throws RemoteException
-		{
-			// TODO: Implement this method
-		}
-
-		@Override
-		public void onProcessStateChanged(int pid, int uid, int procState) throws RemoteException
-		{
-			// TODO: Implement this method
-		}
-
-		@Override
-		public void onForegroundServicesChanged(int pid, int uid, int serviceTypes) throws RemoteException
-		{
-			// TODO: Implement this method
-		}
 	}
 }
