@@ -26,6 +26,8 @@ import android.system.Os;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import java.util.Iterator;
+import java.io.PrintStream;
+import java.io.IOException;
 
 public class Main
 {
@@ -43,20 +45,35 @@ public class Main
 	private IPackageManager ipm;
 	private IUsageStatsManager iusm;
 	private List<String> whiteList=new ArrayList<>();
+	private PrintStream shell;
 	public static void main(String[] args){
 		if(Os.getuid()==2000||Os.getuid()==0){
-			System.out.println("uid"+Os.getuid());
+			System.out.println("uid:"+Os.getuid());
 		Looper.prepare();
 		try{
 		new Main();
 		}catch(Throwable e){
 			e.printStackTrace();
+			System.err.println("运行出错");
+			System.exit(1);
 		}
+		System.out.println("正在后台运行");
 		Looper.loop();
 		}
 		System.exit(1);
 	}
 	public Main(){
+		try
+		{
+			Process p=Runtime.getRuntime().exec("sh");
+			shell=new PrintStream(p.getOutputStream());
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+			System.err.println("shell进程启动失败");
+		}
+		
 		IInputMethodManager imm=IInputMethodManager.Stub.asInterface(ServiceManager.getService(Context.INPUT_METHOD_SERVICE));
 		for(InputMethodInfo info:imm.getEnabledInputMethodList(0)){
 			whiteList.add(info.getPackageName());
@@ -71,7 +88,7 @@ public class Main
 	    
 		try
 		{
-			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED|UID_OBSERVER_GONE|UID_OBSERVER_IDLE, -1, null);
+			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED|UID_OBSERVER_GONE|UID_OBSERVER_IDLE|UID_OBSERVER_ACTIVE, -1, null);
 		}
 		catch (RemoteException e)
 		{
@@ -81,6 +98,7 @@ public class Main
 	
 	class UidObserver extends IUidObserver.Stub
 	{
+		
 		@Override
 		public void onUidGone(int uid, boolean disabled) throws RemoteException
 		{
@@ -99,14 +117,26 @@ public class Main
 		@Override
 		public void onUidActive(int uid) throws RemoteException
 		{
-			
+			if(uid<10000&&uid<65535){
+			//renice +0 -u u0_axxx
+			shell.println("renice +0 -u u0_a"+uid%10000);
+			shell.flush();
+			}
 		}
 
 		@Override
 		public void onUidIdle(int uid, boolean disabled) throws RemoteException
 		{
-			onUidCachedChanged(uid,disabled);
-		}
+			if(uid>10000&&uid<65535){
+				//renice +19 -u u0_axxx
+				shell.println("renice +8 -u u0_a"+uid%10000);
+				shell.flush();
+				//System.out.println("renice:u0_a"+uid%10000);
+				for(String packageName:ipm.getPackagesForUid(uid)){
+					iusm.setAppInactive(packageName,true,0);
+				}
+			}
+			}
 
 		@Override
 		public void onUidStateChanged(int uid, int procState, long procStateSeq) throws RemoteException
@@ -119,6 +149,10 @@ public class Main
 		{
 			
 			if(uid>10000&&uid<65535){
+				//renice +19 -u u0_axxx
+				shell.println("renice +19 -u u0_a"+uid%10000);
+				shell.flush();
+				//System.out.println("renice:u0_a"+uid%10000);
 				for(String packageName:ipm.getPackagesForUid(uid)){
 					iusm.setAppInactive(packageName,true,0);
 				}
