@@ -44,7 +44,7 @@ public class Main
 	private IActivityManager iam;
 	private IPackageManager ipm;
 	private IUsageStatsManager iusm;
-	private List<String> whiteList=new ArrayList<>();
+	private Set<String> whiteList=new ArraySet<>(),blackList=new ArraySet<>();
 	private PrintStream shell;
 	public static void main(String[] args)
 	{
@@ -54,7 +54,7 @@ public class Main
 			Looper.prepare();
 			try
 			{
-				new Main();
+				new Main(args);
 			}
 			catch (Throwable e)
 			{
@@ -67,8 +67,43 @@ public class Main
 		}
 		System.exit(1);
 	}
-	public Main()
+	public Main(String[] args)
 	{
+		for (int i=0;i < args.length;i += 2)
+		{
+			switch (args[i])
+			{
+				case "-b":
+					try
+					{
+						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:"))
+						{
+							blackList.add(pkg);
+							System.out.println("黑名单："+pkg);
+						}
+					}
+					catch (Throwable e)
+					{
+						e.printStackTrace();
+					}
+					break;
+				case "-w":
+					try
+					{
+						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:"))
+						{
+							whiteList.add(pkg);
+							System.out.println("白名单:"+pkg);
+						}
+					}
+					catch (Throwable e)
+					{
+						e.printStackTrace();
+					}
+					break;
+			}
+
+		}
 		try
 		{
 			Process p=Runtime.getRuntime().exec("sh");
@@ -114,8 +149,14 @@ public class Main
 			{
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
+					if(blackList.contains(packageName))
+					{
+						iam.forceStopPackage(packageName,0);
+						System.out.println("blacklist:kill:"+packageName);
+						continue;
+					}
 					if (whiteList.contains(packageName))continue;
-					if(packageName.startsWith("com.google.android."))continue;
+					if (packageName.startsWith("com.google.android."))continue;
 					ApplicationInfo ai=ipm.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, 0);
 					if ((ai.flags & ai.FLAG_SYSTEM) == 0 || (ai.flags & ai.FLAG_UPDATED_SYSTEM_APP) != 0)
 					{
@@ -148,6 +189,7 @@ public class Main
 				//System.out.println("renice:u0_a"+uid%10000);
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
+					if(whiteList.contains(packageName))continue;
 					iusm.setAppInactive(packageName, true, 0);
 				}
 			}
@@ -171,6 +213,7 @@ public class Main
 				//System.out.println("renice:u0_a"+uid%10000);
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
+					if(whiteList.contains(packageName))continue;
 					iusm.setAppInactive(packageName, true, 0);
 				}
 			}
