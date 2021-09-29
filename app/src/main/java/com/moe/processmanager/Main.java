@@ -46,6 +46,7 @@ public class Main
 	private IUsageStatsManager iusm;
 	private Set<String> whiteList=new ArraySet<>(),blackList=new ArraySet<>();
 	private PrintStream shell;
+	private static final String RENICE="renice +%d -u u0_a%d&";
 	public static void main(String[] args)
 	{
 		if (Os.getuid() == 2000 || Os.getuid() == 0)
@@ -131,7 +132,7 @@ public class Main
 
 		try
 		{
-			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED | UID_OBSERVER_GONE | UID_OBSERVER_IDLE | UID_OBSERVER_ACTIVE, -1, null);
+			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED | UID_OBSERVER_GONE , -1, null);
 		}
 		catch (RemoteException e)
 		{
@@ -173,7 +174,7 @@ public class Main
 			if (uid < 10000 && uid < 65535)
 			{
 				//renice +0 -u u0_axxx
-				shell.println("renice +0 -u u0_a" + uid % 10000);
+				shell.println("renice +0 -u u0_a" + uid % 10000+"&");
 				shell.flush();
 			}
 		}
@@ -181,10 +182,11 @@ public class Main
 		@Override
 		public void onUidIdle(int uid, boolean disabled) throws RemoteException
 		{
-			if (uid > 10000 && uid < 65535)
+			System.out.println("idle:"+uid);
+			/*if (uid > 10000 && uid < 65535)
 			{
 				//renice +19 -u u0_axxx
-				shell.println("renice +3 -u u0_a" + uid % 10000);
+				shell.println("renice +3 -u u0_a" + uid % 10000+"&");
 				shell.flush();
 				//System.out.println("renice:u0_a"+uid%10000);
 				for (String packageName:ipm.getPackagesForUid(uid))
@@ -192,7 +194,7 @@ public class Main
 					if(whiteList.contains(packageName))continue;
 					iusm.setAppInactive(packageName, true, 0);
 				}
-			}
+			}*/
 		}
 
 		@Override
@@ -205,16 +207,17 @@ public class Main
 		public void onUidCachedChanged(int uid, boolean cached) throws RemoteException
 		{
 
+			//System.out.println("cached:"+uid+cached);
 			if (uid > 10000 && uid < 65535)
 			{
 				//renice +19 -u u0_axxx
-				shell.println("renice +10 -u u0_a" + uid % 10000);
+				shell.println(String.format(RENICE,cached?10:0,uid%10000));
 				shell.flush();
 				//System.out.println("renice:u0_a"+uid%10000);
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
 					if(whiteList.contains(packageName))continue;
-					iusm.setAppInactive(packageName, true, 0);
+					iusm.setAppInactive(packageName, cached, 0);
 				}
 			}
 		}
