@@ -147,7 +147,22 @@ public class Main
 	
 	class UidObserver extends IUidObserver.Stub
 	{
-
+		private void kill(String packageName) throws RemoteException{
+			if(blackList.contains(packageName))
+			{
+				iam.forceStopPackage(packageName,0);
+				System.out.println("blacklist:kill:"+packageName);
+				return;
+			}
+			if (whiteList.contains(packageName))return;
+			if (packageName.startsWith("com.google.android."))return;
+			ApplicationInfo ai=ipm.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, 0);
+			if ((ai.flags & ai.FLAG_SYSTEM) == 0 || (ai.flags & ai.FLAG_UPDATED_SYSTEM_APP) != 0)
+			{
+				iam.forceStopPackage(packageName, 0);
+				System.out.println("kill:" + packageName);
+			}
+		}
 		@Override
 		public void onUidGone(int uid, boolean disabled) throws RemoteException
 		{
@@ -155,20 +170,7 @@ public class Main
 			{
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
-					if(blackList.contains(packageName))
-					{
-						iam.forceStopPackage(packageName,0);
-						System.out.println("blacklist:kill:"+packageName);
-						continue;
-					}
-					if (whiteList.contains(packageName))continue;
-					if (packageName.startsWith("com.google.android."))continue;
-					ApplicationInfo ai=ipm.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, 0);
-					if ((ai.flags & ai.FLAG_SYSTEM) == 0 || (ai.flags & ai.FLAG_UPDATED_SYSTEM_APP) != 0)
-					{
-						iam.forceStopPackage(packageName, 0);
-						System.out.println("gone:kill:" + packageName);
-					}
+					kill(packageName);
 				}
 			}
 		}
@@ -213,16 +215,30 @@ public class Main
 		{
 
 			//System.out.println("cached:"+uid+cached);
-			if (uid > 10000 && uid < 65535)
+			if (uid > 10000 && uid < 65535 && cached)
 			{
 				//renice +19 -u u0_axxx
 				//shell.println(String.format(RENICE,cached?10:0,uid%10000));
 				//shell.flush();
 				//System.out.println("renice:u0_a"+uid%10000);
+				List<ActivityManager.RecentTaskInfo> list=iam.getRecentTasks(Integer.MAX_VALUE,0,0).getList();
+				List<String> pkgs=new ArrayList<>();
+				Iterator<ActivityManager.RecentTaskInfo> i=list.iterator();
+				while(i.hasNext()){
+					ActivityManager.RecentTaskInfo info=i.next();
+					pkgs.add(info.baseActivity.getPackageName());
+				}
+				//System.out.println(list.size());
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
 					if(whiteList.contains(packageName))continue;
+					if(pkgs.contains(packageName))
 					iusm.setAppInactive(packageName, cached, 0);
+					else{
+						//iam.forceStopPackage(packageName,0);
+						System.out.println("Recent not has:"+packageName);
+						kill(packageName);
+						}
 				}
 			}
 		}

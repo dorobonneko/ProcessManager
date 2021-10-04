@@ -8,6 +8,7 @@ import android.os.IInterface;
 import android.os.RemoteException;
 
 import androidx.annotation.RequiresApi;
+import android.content.pm.*;
 
 public interface IActivityManager extends IInterface {
 
@@ -39,7 +40,10 @@ public interface IActivityManager extends IInterface {
                             int requestCode, int flags, ProfilerInfo profilerInfo,
                             Bundle options, int userId)
             throws RemoteException;
-
+	ParceledListSlice getRecentTasks(int maxNum, int flags, int userId);
+	
+	void killBackgroundProcesses(String packageName, int userId);
+	
     @RequiresApi(26)
     abstract class Stub extends Binder implements IActivityManager {
 
