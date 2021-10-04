@@ -28,6 +28,7 @@ import android.content.pm.ResolveInfo;
 import java.util.Iterator;
 import java.io.PrintStream;
 import java.io.IOException;
+import android.text.TextUtils;
 
 public class Main
 {
@@ -77,9 +78,10 @@ public class Main
 				case "-b":
 					try
 					{
-						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:"))
+						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:|\n"))
 						{
-							blackList.add(pkg);
+							if(TextUtils.isEmpty(pkg))continue;
+							blackList.add(pkg.trim());
 							System.out.println("黑名单："+pkg);
 						}
 					}
@@ -91,9 +93,10 @@ public class Main
 				case "-w":
 					try
 					{
-						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:"))
+						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:|\n"))
 						{
-							whiteList.add(pkg);
+							if(TextUtils.isEmpty(pkg))continue;
+							whiteList.add(pkg.trim());
 							System.out.println("白名单:"+pkg);
 						}
 					}
@@ -120,6 +123,7 @@ public class Main
 		IInputMethodManager imm=IInputMethodManager.Stub.asInterface(ServiceManager.getService(Context.INPUT_METHOD_SERVICE));
 		for (InputMethodInfo info:imm.getEnabledInputMethodList(0))
 		{
+			System.out.println("输入法："+info.getPackageName());
 			whiteList.add(info.getPackageName());
 		}
 		iusm = IUsageStatsManager.Stub.asInterface(ServiceManager.getService(Context.USAGE_STATS_SERVICE));
@@ -132,14 +136,15 @@ public class Main
 
 		try
 		{
-			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED | UID_OBSERVER_GONE , -1, null);
+			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED | UID_OBSERVER_GONE ,-1, null);
 		}
 		catch (RemoteException e)
 		{
 			e.printStackTrace();
 		}
+		
 	}
-
+	
 	class UidObserver extends IUidObserver.Stub
 	{
 
@@ -171,12 +176,12 @@ public class Main
 		@Override
 		public void onUidActive(int uid) throws RemoteException
 		{
-			if (uid < 10000 && uid < 65535)
+			/*if (uid < 10000 && uid < 65535)
 			{
 				//renice +0 -u u0_axxx
 				shell.println("renice +0 -u u0_a" + uid % 10000+"&");
 				shell.flush();
-			}
+			}*/
 		}
 
 		@Override
@@ -200,7 +205,7 @@ public class Main
 		@Override
 		public void onUidStateChanged(int uid, int procState, long procStateSeq) throws RemoteException
 		{
-
+			System.out.println(procStateSeq);
 		}
 
 		@Override
@@ -211,8 +216,8 @@ public class Main
 			if (uid > 10000 && uid < 65535)
 			{
 				//renice +19 -u u0_axxx
-				shell.println(String.format(RENICE,cached?10:0,uid%10000));
-				shell.flush();
+				//shell.println(String.format(RENICE,cached?10:0,uid%10000));
+				//shell.flush();
 				//System.out.println("renice:u0_a"+uid%10000);
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
