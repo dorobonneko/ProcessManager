@@ -29,8 +29,11 @@ import java.util.Iterator;
 import java.io.PrintStream;
 import java.io.IOException;
 import android.text.TextUtils;
+import android.app.*;
+import java.util.*;
+import android.os.*;
 
-public class Main
+public class Main implements Handler.Callback
 {
 	public static final int UID_OBSERVER_PROCSTATE = 1 << 0;
 
@@ -45,9 +48,11 @@ public class Main
 	private IActivityManager iam;
 	private IPackageManager ipm;
 	private IUsageStatsManager iusm;
-	private Set<String> whiteList=new ArraySet<>(),blackList=new ArraySet<>();
-	private PrintStream shell;
-	private static final String RENICE="renice +%d -u u0_a%d&";
+	private Set<String> whiteList=new ArraySet<>(),blackList=new ArraySet<>(),recents=new ArraySet<>();
+	private HashMap<String,Boolean> apps=new HashMap<>();
+	//private PrintStream shell;
+	private Handler mHandler=new Handler(this);
+	//private static final String RENICE="renice +%d -u u0_a%d&";
 	public static void main(String[] args)
 	{
 		if (Os.getuid() == 2000 || Os.getuid() == 0)
@@ -69,6 +74,9 @@ public class Main
 		}
 		System.exit(1);
 	}
+	public <T> T cast(Object o){
+		return (T)o;
+	}
 	public Main(String[] args)
 	{
 		for (int i=0;i < args.length;i += 2)
@@ -80,9 +88,9 @@ public class Main
 					{
 						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:|\n"))
 						{
-							if(TextUtils.isEmpty(pkg))continue;
+							if (TextUtils.isEmpty(pkg))continue;
 							blackList.add(pkg.trim());
-							System.out.println("黑名单："+pkg);
+							System.out.println("黑名单：" + pkg);
 						}
 					}
 					catch (Throwable e)
@@ -95,9 +103,9 @@ public class Main
 					{
 						for (String pkg:args[i + 1].replaceAll(" ", "").split(",|\\||:|\n"))
 						{
-							if(TextUtils.isEmpty(pkg))continue;
+							if (TextUtils.isEmpty(pkg))continue;
 							whiteList.add(pkg.trim());
-							System.out.println("白名单:"+pkg);
+							System.out.println("白名单:" + pkg);
 						}
 					}
 					catch (Throwable e)
@@ -108,22 +116,12 @@ public class Main
 			}
 
 		}
-		try
-		{
-			Process p=Runtime.getRuntime().exec("sh");
-			shell = new PrintStream(p.getOutputStream());
-		}
-		catch (IOException e)
-		{
-			e.printStackTrace();
-			System.err.println("shell进程启动失败");
-		}
-
+		
 
 		IInputMethodManager imm=IInputMethodManager.Stub.asInterface(ServiceManager.getService(Context.INPUT_METHOD_SERVICE));
 		for (InputMethodInfo info:imm.getEnabledInputMethodList(0))
 		{
-			System.out.println("输入法："+info.getPackageName());
+			System.out.println("输入法：" + info.getPackageName());
 			whiteList.add(info.getPackageName());
 		}
 		iusm = IUsageStatsManager.Stub.asInterface(ServiceManager.getService(Context.USAGE_STATS_SERVICE));
@@ -136,37 +134,79 @@ public class Main
 
 		try
 		{
-			iam.registerUidObserver(new UidObserver(), UID_OBSERVER_CACHED | UID_OBSERVER_GONE ,-1, null);
+			iam.registerUidObserver(new UidObserver(),  UID_OBSERVER_CACHED | UID_OBSERVER_GONE , -1, null);
 		}
 		catch (RemoteException e)
 		{
 			e.printStackTrace();
 		}
-		
+
 	}
-	
+
+	@Override
+	public boolean handleMessage(Message param1Message)
+	{
+		String packageName=(String) param1Message.obj;
+		if (iusm.isAppInactive(packageName, 0, null))
+			System.out.println("绿色应用：" + packageName);
+		else
+		{
+			try
+			{
+				iam.forceStopPackage(packageName, 0);
+				System.out.println("激进：" + packageName);
+			}
+			catch (RemoteException e)
+			{}
+		}
+		return true;
+	}
+
+
 	class UidObserver extends IUidObserver.Stub
 	{
-		private void kill(String packageName) throws RemoteException{
-			if(blackList.contains(packageName))
+		private void kill(String packageName) throws RemoteException
+		{
+			if (blackList.contains(packageName))
 			{
-				iam.forceStopPackage(packageName,0);
-				System.out.println("blacklist:kill:"+packageName);
+				iam.forceStopPackage(packageName, 0);
+				System.out.println("blacklist:kill:" + packageName);
 				return;
 			}
 			if (whiteList.contains(packageName))return;
 			if (packageName.startsWith("com.google.android."))return;
-			ApplicationInfo ai=ipm.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, 0);
-			if ((ai.flags & ai.FLAG_SYSTEM) == 0 || (ai.flags & ai.FLAG_UPDATED_SYSTEM_APP) != 0)
+			if (!apps.containsKey(packageName))
+			{
+				ApplicationInfo ai=ipm.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, 0);
+				apps.put(packageName, ((ai.flags & ai.FLAG_SYSTEM) == 0 || (ai.flags & ai.FLAG_UPDATED_SYSTEM_APP) != 0));
+			}
+			if (apps.get(packageName))
 			{
 				iam.forceStopPackage(packageName, 0);
 				System.out.println("kill:" + packageName);
 			}
 		}
+		private void onChanged()
+		{
+			List<ActivityManager.RecentTaskInfo> list=iam.getRecentTasks(Integer.MAX_VALUE, ActivityManager.RECENT_WITH_EXCLUDED, 0).getList();
+			recents.clear();
+			Iterator<ActivityManager.RecentTaskInfo> i=list.iterator();
+			while (i.hasNext())
+			{
+				ActivityManager.RecentTaskInfo info=i.next();
+				recents.add(info.baseActivity.getPackageName());
+				recents.add(info.topActivity.getPackageName());
+				recents.add(info.origActivity.getPackageName());
+				TaskInfo tInfo=cast(info);
+				if(tInfo.topActivityInfo!=null)
+					recents.add(tInfo.topActivityInfo.packageName);
+				//System.out.println(info.toString());
+			}
+		}
 		@Override
 		public void onUidGone(int uid, boolean disabled) throws RemoteException
 		{
-			if (uid > 10000 && uid < 65535)
+			if (uid > 10000 && uid < 65535&&!disabled)
 			{
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
@@ -179,29 +219,20 @@ public class Main
 		public void onUidActive(int uid) throws RemoteException
 		{
 			/*if (uid < 10000 && uid < 65535)
-			{
-				//renice +0 -u u0_axxx
-				shell.println("renice +0 -u u0_a" + uid % 10000+"&");
-				shell.flush();
-			}*/
+			 {
+			 //renice +0 -u u0_axxx
+			 shell.println("renice +0 -u u0_a" + uid % 10000+"&");
+			 shell.flush();
+			 }*/
 		}
 
 		@Override
 		public void onUidIdle(int uid, boolean disabled) throws RemoteException
 		{
-			System.out.println("idle:"+uid);
-			/*if (uid > 10000 && uid < 65535)
-			{
-				//renice +19 -u u0_axxx
-				shell.println("renice +3 -u u0_a" + uid % 10000+"&");
-				shell.flush();
-				//System.out.println("renice:u0_a"+uid%10000);
-				for (String packageName:ipm.getPackagesForUid(uid))
-				{
-					if(whiteList.contains(packageName))continue;
-					iusm.setAppInactive(packageName, true, 0);
-				}
-			}*/
+			/*if (!disabled)
+				check(uid);
+			else if(!iam.isUidActive(uid,null))
+				check(uid);*/
 		}
 
 		@Override
@@ -215,34 +246,39 @@ public class Main
 		{
 
 			//System.out.println("cached:"+uid+cached);
-			if (uid > 10000 && uid < 65535 && cached)
+			check(uid,cached);
+		}
+		
+		private void check(int uid,boolean cached) throws RemoteException
+		{
+			if (uid > 10000 && uid < 65535)
 			{
-				//renice +19 -u u0_axxx
-				//shell.println(String.format(RENICE,cached?10:0,uid%10000));
-				//shell.flush();
-				//System.out.println("renice:u0_a"+uid%10000);
-				List<ActivityManager.RecentTaskInfo> list=iam.getRecentTasks(Integer.MAX_VALUE,0,0).getList();
-				List<String> pkgs=new ArrayList<>();
-				Iterator<ActivityManager.RecentTaskInfo> i=list.iterator();
-				while(i.hasNext()){
-					ActivityManager.RecentTaskInfo info=i.next();
-					pkgs.add(info.baseActivity.getPackageName());
-				}
-				//System.out.println(list.size());
 				for (String packageName:ipm.getPackagesForUid(uid))
 				{
-					if(whiteList.contains(packageName))continue;
-					if(pkgs.contains(packageName))
-					iusm.setAppInactive(packageName, cached, 0);
-					else{
-						//iam.forceStopPackage(packageName,0);
-						System.out.println("Recent not has:"+packageName);
-						kill(packageName);
+					if (whiteList.contains(packageName))continue;
+					if (packageName.startsWith("com.google.android."))return;
+					if(packageName.startsWith("com.android."))return;
+					if(packageName.startsWith("com.qualcomm."))return;
+					onChanged();
+					iusm.setAppInactive(packageName, true, 0);
+					if (!recents.contains(packageName))
+					{
+						if (blackList.contains(packageName))
+						{
+							iam.forceStopPackage(packageName, 0);
+							System.out.println("blacklist:kill:" + packageName);
 						}
+						else if(cached){
+							mHandler.removeMessages(packageName.hashCode());
+						mHandler.sendMessageDelayed(mHandler.obtainMessage(packageName.hashCode(),packageName),2000);
+						}else{
+							iam.forceStopPackage(packageName, 0);
+							System.out.println("active no Recent:kill:" + packageName);
+						}
+					}
 				}
 			}
 		}
-
 
 	}
 }

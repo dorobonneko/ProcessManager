@@ -43,7 +43,12 @@ public interface IActivityManager extends IInterface {
 	ParceledListSlice getRecentTasks(int maxNum, int flags, int userId);
 	
 	void killBackgroundProcesses(String packageName, int userId);
-	
+	void unregisterUidObserver(IUidObserver observer);
+    boolean isUidActive(int uid, String callingPackage);
+    int getUidProcessState(int uid,String callingPackage);
+    void registerTaskStackListener(ITaskStackListener listener);
+    void unregisterTaskStackListener(ITaskStackListener listener);
+    
     @RequiresApi(26)
     abstract class Stub extends Binder implements IActivityManager {
 
