@@ -6,7 +6,7 @@ public interface IUsageStatsManager
 {
 	void setAppInactive(String packageName, boolean inactive, int userId);
     boolean isAppInactive(String packageName, int userId, String callingPackage);
-	
+	boolean isAppStandbyEnabled();
 	public static abstract class Stub extends Binder implements IUsageStatsManager{
 		public static IUsageStatsManager asInterface(IBinder binder){
 			throw new RuntimeException("STUB");

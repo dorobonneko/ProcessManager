@@ -6,6 +6,7 @@ import android.os.IBinder;
 
 public interface IInputMethodManager
 {
+	InputMethodInfo getCurrentInputMethodInfoAsUser(int userId);
 	List<InputMethodInfo> getEnabledInputMethodList(int userId)
 	public static abstract class Stub extends Binder implements IInputMethodManager{
 		public static IInputMethodManager asInterface(IBinder binder){

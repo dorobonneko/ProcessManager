@@ -9,6 +9,7 @@ import android.os.RemoteException;
 
 import androidx.annotation.RequiresApi;
 import android.content.pm.*;
+import java.util.List;
 
 public interface IActivityManager extends IInterface {
 
@@ -48,7 +49,15 @@ public interface IActivityManager extends IInterface {
     int getUidProcessState(int uid,String callingPackage);
     void registerTaskStackListener(ITaskStackListener listener);
     void unregisterTaskStackListener(ITaskStackListener listener);
-    
+    boolean isAppFreezerSupported();
+	boolean isAppFreezerEnabled();
+	boolean enableAppFreezer(boolean enable);
+	boolean isProcessFrozen(int pid);
+	void registerUidFrozenStateChangedCallback(IUidFrozenStateChangedCallback callback);
+    void unregisterUidFrozenStateChangedCallback(IUidFrozenStateChangedCallback callback);
+    int[] getUidFrozenState(int[] uids);
+	List<ActivityManager.RunningTaskInfo> getTasks(int maxNum);
+	
     @RequiresApi(26)
     abstract class Stub extends Binder implements IActivityManager {
 
